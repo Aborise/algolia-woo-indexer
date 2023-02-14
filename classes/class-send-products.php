@@ -48,7 +48,7 @@ if (!class_exists('Algolia_Send_Products')) {
     /**
      * Algolia WooIndexer main class
      */
-    
+
     // TODO Rename class "Algolia_Send_Products" to match the regular expression ^[A-Z][a-zA-Z0-9]*$.
     class Algolia_Send_Products
     {
@@ -61,6 +61,10 @@ if (!class_exists('Algolia_Send_Products')) {
          * @var \Algolia\AlgoliaSearch\SearchClient
          */
         private static $algolia = null;
+
+        private static $category_lists = [];
+
+        private static $vendor_list = [];
 
         /**
          * Check if we can connect to Algolia, if not, handle the exception, display an error and then return
@@ -85,7 +89,7 @@ if (!class_exists('Algolia_Send_Products')) {
         /**
          * Get sale price or regular price based on product type
          *
-         * @param  mixed $product Product to check   
+         * @param  mixed $product Product to check
          * @return array ['sale_price' => $sale_price,'regular_price' => $regular_price] Array with regular price and sale price
          */
         public static function get_product_type_price($product)
@@ -191,13 +195,14 @@ if (!class_exists('Algolia_Send_Products')) {
             $records = array();
             $record  = array();
 
+            // /** @var \WC_Product_Variable_Subscription $product */
             foreach ($products as $product) {
                 /**
                  * Set sale price or regular price based on product type
                  */
                 $product_type_price = self::get_product_type_price($product);
                 $sale_price = $product_type_price['sale_price'];
-                $regular_price = $product_type_price['regular_price']; 
+                $regular_price = $product_type_price['regular_price'];
 
                 /**
                  * Extract image from $product->get_image()
@@ -214,6 +219,11 @@ if (!class_exists('Algolia_Send_Products')) {
                 $record['regular_price']                 = $regular_price;
                 $record['sale_price']                    = $sale_price;
                 $record['on_sale']                       = $product->is_on_sale();
+                $record['categories']                    = self::get_category_names_by_ids($product->get_category_ids());
+                $record['slug']                          = $product->get_slug();
+                $record['variation_prices']              = self::get_available_variations($product);
+                $record['vendor']                       = self::get_vendor_name($product->get_id());
+                $record['images']                       = self::get_gallery_images_by_ids($product->get_gallery_image_ids());
                 $records[] = $record;
             }
             wp_reset_postdata();
@@ -234,6 +244,74 @@ if (!class_exists('Algolia_Send_Products')) {
             echo '<div class="notice notice-success is-dismissible">
 					 	<p>' . esc_html__('Product(s) sent to Algolia.', 'algolia-woo-indexer') . '</p>
 				  		</div>';
+        }
+
+        public static function get_category_names_by_ids(array $category_ids): array
+        {
+            $categories = [];
+            foreach ($category_ids as $category_id) {
+                $categories[] = self::get_category_by_id($category_id);
+            }
+
+            return $categories;
+        }
+
+        public static function get_category_by_id( int $category_id): string
+        {
+            if (!array_key_exists($category_id, self::$category_lists)) {
+                $category = get_term_by( 'id', $category_id, 'product_cat', 'ARRAY_A' );
+                self::$category_lists[$category_id] = $category['name'];
+            }
+
+            return self::$category_lists[$category_id];
+        }
+
+        public static function get_vendor_name( int $product_id ): string
+        {
+            $vendor_id = get_post_field( 'post_author', $product_id );
+            if (!array_key_exists($vendor_id, self::$vendor_list)) {
+                $vendor_name = get_user_meta( $vendor_id, 'pv_shop_name', true );
+                self::$vendor_list[$vendor_id] = $vendor_name !== '' ? $vendor_name : 'aborise';
+            }
+
+            return self::$vendor_list[$vendor_id];
+        }
+
+        public static function get_gallery_images_by_ids(array $gallery_ids): array
+        {
+            $imageUrls = [];
+            foreach ($gallery_ids as $gallery_id) {
+                $imageUrls[] = wp_get_attachment_url($gallery_id);
+            }
+
+            return $imageUrls;
+        }
+
+        public static function get_available_variations( $product ): array
+        {
+            if (!$product->is_type('variable')) {
+                return [];
+            }
+
+            $variations = [];
+            // /** @var \WC_Product_Subscription_Variation $variation */
+            foreach ( $product->get_available_variations( 'object' ) as $variation ){
+                /**
+                 * Extract image from $product->get_image()
+                 */
+                preg_match('/<img(.*)src(.*)=(.*)"(.*)"/U', $variation->get_image(), $result);
+                $variation_image = array_pop($result);
+                $variations[] = [
+                    'attributes' => $variation->get_attributes(),
+                    'regular_price' =>  $variation->get_regular_price(),
+                    'sales_price' =>  $variation->get_sale_price(),
+                    'name' => $variation->get_name(),
+                    'attribute_summary' => $variation->get_attribute_summary(),
+                    'image' => $variation_image,
+                ];
+            }
+
+            return $variations;
         }
     }
 }
