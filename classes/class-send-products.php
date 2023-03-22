@@ -9,6 +9,7 @@
 
 namespace Algowoo;
 
+use Algolia\AlgoliaSearch\SearchClient;
 use \Algowoo\Algolia_Check_Requirements as Algolia_Check_Requirements;
 
 /**
@@ -58,7 +59,7 @@ if (!class_exists('Algolia_Send_Products')) {
         /**
          * The Algolia instance
          *
-         * @var \Algolia\AlgoliaSearch\SearchClient
+         * @var SearchClient
          */
         private static $algolia = null;
 
@@ -103,9 +104,13 @@ if (!class_exists('Algolia_Send_Products')) {
                 $sale_price     =  $product->get_variation_sale_price('min', true);
                 $regular_price  =  $product->get_variation_regular_price('max', true);
             }
+
             return array(
                 'sale_price' => $sale_price,
-                'regular_price' => $regular_price
+                'regular_price' => $regular_price,
+                'sign_up_fee' => $product->get_sign_up_fee(),
+                'trial_length' => \WC_Subscriptions_Product::get_trial_length($product),
+                'trial_period' => \WC_Subscriptions_Product::get_trial_period($product),
             );
         }
 
@@ -146,7 +151,7 @@ if (!class_exists('Algolia_Send_Products')) {
             /**
              * Initiate the Algolia client
              */
-            self::$algolia = \Algolia\AlgoliaSearch\SearchClient::create($algolia_application_id, $algolia_api_key);
+            self::$algolia = SearchClient::create($algolia_application_id, $algolia_api_key);
 
             /**
              * Check if we can connect, if not, handle the exception, display an error and then return
@@ -195,7 +200,7 @@ if (!class_exists('Algolia_Send_Products')) {
             $records = array();
             $record  = array();
 
-            // /** @var \WC_Product_Variable_Subscription $product */
+            /** @var \WC_Product_Variable_Subscription $product */
             foreach ($products as $product) {
                 /**
                  * Set sale price or regular price based on product type
@@ -218,12 +223,17 @@ if (!class_exists('Algolia_Send_Products')) {
                 $record['short_description']             = $product->get_short_description();
                 $record['regular_price']                 = $regular_price;
                 $record['sale_price']                    = $sale_price;
+                $record['price']                         = $product->get_price();
+                $record['price_html']                    = $product->get_price_html();
+                $record['sign_up_fee']                   = $product_type_price['sign_up_fee'];
+                $record['trial_length']                  = $product_type_price['trial_length'];
+                $record['trial_period']                  = $product_type_price['trial_period'];
                 $record['on_sale']                       = $product->is_on_sale();
                 $record['categories']                    = self::get_category_names_by_ids($product->get_category_ids());
                 $record['slug']                          = $product->get_slug();
-                $record['variation_prices']              = self::get_available_variations($product);
-                $record['vendor']                       = self::get_vendor_name($product->get_id());
-                $record['images']                       = self::get_gallery_images_by_ids($product->get_gallery_image_ids());
+                $record['variations']                    = self::get_available_variations($product);
+                $record['vendor']                        = self::get_vendor_name($product->get_id());
+                $record['images']                        = self::get_gallery_images_by_ids($product->get_gallery_image_ids());
                 $records[] = $record;
             }
             wp_reset_postdata();
@@ -294,7 +304,7 @@ if (!class_exists('Algolia_Send_Products')) {
             }
 
             $variations = [];
-            // /** @var \WC_Product_Subscription_Variation $variation */
+            /** @var \WC_Product_Subscription_Variation $variation */
             foreach ( $product->get_available_variations( 'object' ) as $variation ){
                 /**
                  * Extract image from $product->get_image()
@@ -308,6 +318,9 @@ if (!class_exists('Algolia_Send_Products')) {
                     'name' => $variation->get_name(),
                     'attribute_summary' => $variation->get_attribute_summary(),
                     'image' => $variation_image,
+                    'sign_up_fee' => $variation->get_sign_up_fee(),
+                    'trial_length' => \WC_Subscriptions_Product::get_trial_length($variation),
+                    'trial_period' => \WC_Subscriptions_Product::get_trial_period($variation),
                 ];
             }
 
