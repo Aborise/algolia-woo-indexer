@@ -229,6 +229,7 @@ if (!class_exists('Algolia_Send_Products')) {
                 $record['sign_up_fee']                   = $product_type_price['sign_up_fee'];
                 $record['trial_length']                  = $product_type_price['trial_length'];
                 $record['trial_period']                  = $product_type_price['trial_period'];
+                $record['period']                        = $product_type_price['period'];
                 $record['on_sale']                       = $product->is_on_sale();
                 $record['categories']                    = self::get_category_names_by_ids($product->get_category_ids());
                 $record['slug']                          = $product->get_slug();
