@@ -111,7 +111,7 @@ if (!class_exists('Algolia_Send_Products')) {
                 'sign_up_fee' => $product->get_sign_up_fee(),
                 'trial_length' => \WC_Subscriptions_Product::get_trial_length($product),
                 'trial_period' => \WC_Subscriptions_Product::get_trial_period($product),
-                'period' => \WC_Subscriptions_Product::get_period( $source ),
+                'period' => \WC_Subscriptions_Product::get_period( $product ),
             );
         }
 
